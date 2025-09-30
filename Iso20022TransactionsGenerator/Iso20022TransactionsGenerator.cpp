@@ -6,9 +6,8 @@
 
 int main()
 {
-    TransactionGenerator gen; // за замовчуванням mean=1000 sd=300 outlier_prob=0.01
+    TransactionGenerator gen("parties.txt");
 
-    // Невеликий приклад: згенерувати 10 транзакцій і вивести
     auto batch = gen.GenerateBatch(10);
     for (size_t i = 0; i < batch.size(); ++i) {
         std::cout << "---- Transaction " << (i + 1) << " ----\n";

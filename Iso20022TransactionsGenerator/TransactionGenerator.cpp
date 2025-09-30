@@ -1,104 +1,71 @@
 #include "TransactionGenerator.h"
-
-#include <random>
 #include <chrono>
-#include <ctime>
-#include <algorithm>
 #include <sstream>
+#include <iomanip>
+#include <cmath>
 #include <cstdio>
-#include <fstream>
-#include <iostream>
+#include <random>
 
-template <typename T>
-inline T clamp(const T& val, const T& lo, const T& hi) {
-    if (val < lo) return lo;
-    if (val > hi) return hi;
-    return val;
+static double clamp(double x, double lo, double hi) {
+    return (x < lo) ? lo : (x > hi ? hi : x);
 }
 
-TransactionGenerator::TransactionGenerator(double mean, double sd, double outlier_prob, double outlier_mult_mean)
+TransactionGenerator::TransactionGenerator(const std::string& partiesFile,
+    double mean, double sd, double outlier_prob, double outlier_mult_mean)
     : rng_(std::random_device{}()),
     normal_dist_(mean, sd),
     outlier_prob_(outlier_prob),
     outlier_mult_mean_(outlier_mult_mean),
     counter_(0)
 {
-    InitParties("Data/parties.txt");
+    this->partiesList = std::make_unique<PartiesList>(partiesFile);
 }
 
 void TransactionGenerator::SetSeed(uint64_t seed) {
     rng_.seed(seed);
 }
 
-void TransactionGenerator::InitParties(const std::string& filename) {
-    parties_.clear();
-
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Cannot open file: " << filename << std::endl;
-        return;
-    }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string name, iban;
-
-        if (std::getline(ss, name, ',') && std::getline(ss, iban)) {
-            parties_.push_back({ name, iban });
-        }
-    }
-    file.close();
-}
-
 size_t TransactionGenerator::RandIndex() {
-    std::uniform_int_distribution<size_t> dist(0, parties_.size() - 1);
+    auto parties = partiesList->getParties();
+    std::uniform_int_distribution<size_t> dist(0, parties.size() - 1);
     return dist(rng_);
 }
 
 double TransactionGenerator::SampleAmount() {
-    double base = normal_dist_(rng_);
-    if (base < 1.0) base = 1.0;
-
-    std::uniform_real_distribution<double> prob(0.0, 1.0);
-    if (prob(rng_) < outlier_prob_) {
-        std::lognormal_distribution<double> logn(std::log(outlier_mult_mean_), 1.0);
-        double mult = logn(rng_);
-        double big = base * mult;
-        return clamp(big, 1.0, 1e9);
+    double x = normal_dist_(rng_);
+    std::bernoulli_distribution bd(outlier_prob_);
+    if (bd(rng_)) {
+        std::exponential_distribution<double> exp(1.0 / outlier_mult_mean_);
+        x *= (1.0 + exp(rng_));
     }
-    return base;
+    return clamp(x, 0.01, 1e9);
 }
 
 void TransactionGenerator::AppendAmountTwoDecimals(std::string& dest, double amount) {
-    long long cents = static_cast<long long>(std::llround(amount * 100.0));
-    long long whole = cents / 100;
-    int frac = static_cast<int>(std::llabs(cents % 100));
-
-    dest.append(std::to_string(whole));
-    dest.push_back('.');
-    if (frac < 10) dest.push_back('0');
-    dest.append(std::to_string(frac));
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.2f", amount);
+    dest += buf;
 }
 
 std::string TransactionGenerator::NowUtcIso() {
     using namespace std::chrono;
     auto now = system_clock::now();
-    time_t t = system_clock::to_time_t(now);
+    std::time_t t = system_clock::to_time_t(now);
+
     std::tm tm{};
 #ifdef _WIN32
     gmtime_s(&tm, &t);
 #else
     gmtime_r(&t, &tm);
 #endif
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02dZ",
-        tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-        tm.tm_hour, tm.tm_min, tm.tm_sec);
-    return std::string(buf);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
+    return oss.str();
 }
 
-std::string TransactionGenerator::GeneratePain001Fast(const std::string& msgId,
+std::string TransactionGenerator::GeneratePain001Fast(
+    const std::string& msgId,
     const std::string& timestamp,
     const std::string& debtorName,
     const std::string& debtorIBAN,
@@ -173,12 +140,14 @@ std::string TransactionGenerator::GeneratePain001Fast(const std::string& msgId,
 }
 
 std::string TransactionGenerator::GenerateRandomTransaction() {
-    const Party& debtor = parties_[RandIndex()];
-    size_t creditorIdx;
+    auto parties = partiesList->getParties();
+
+    const Party* debtor = parties[RandIndex()];
+    const Party* creditor = nullptr;
+
     do {
-        creditorIdx = RandIndex();
-    } while (parties_[creditorIdx].iban == debtor.iban || creditorIdx == (&debtor - &parties_[0]));
-    const Party& creditor = parties_[creditorIdx];
+        creditor = parties[RandIndex()];
+    } while (creditor->getIban() == debtor->getIban());
 
     double amount = SampleAmount();
 
@@ -188,16 +157,16 @@ std::string TransactionGenerator::GenerateRandomTransaction() {
     std::string timestamp = NowUtcIso();
 
     return GeneratePain001Fast(msgId, timestamp,
-        debtor.name, debtor.iban,
-        creditor.name, creditor.iban,
+        debtor->getName(), debtor->getIban(),
+        creditor->getName(), creditor->getIban(),
         endToEnd, amount, "EUR");
 }
 
 std::vector<std::string> TransactionGenerator::GenerateBatch(size_t n) {
-    std::vector<std::string> out;
-    out.reserve(n);
+    std::vector<std::string> batch;
+    batch.reserve(n);
     for (size_t i = 0; i < n; ++i) {
-        out.push_back(GenerateRandomTransaction());
+        batch.push_back(GenerateRandomTransaction());
     }
-    return out;
+    return batch;
 }

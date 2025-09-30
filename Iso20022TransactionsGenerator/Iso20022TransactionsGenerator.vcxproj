@@ -128,9 +128,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Iso20022TransactionsGenerator.cpp" />
+    <ClCompile Include="PartiesList.cpp" />
+    <ClCompile Include="Party.cpp" />
     <ClCompile Include="TransactionGenerator.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="PartiesList.h" />
+    <ClInclude Include="Party.h" />
     <ClInclude Include="TransactionGenerator.h" />
   </ItemGroup>
   <ItemGroup>

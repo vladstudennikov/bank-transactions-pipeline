@@ -5,25 +5,21 @@
 #include <vector>
 #include <atomic>
 #include <random>
-
-struct Party {
-    std::string name;
-    std::string iban;
-};
+#include <memory>
+#include "Party.h"
+#include "PartiesList.h"
 
 class TransactionGenerator {
 public:
-    TransactionGenerator(double mean = 1000.0, double sd = 300.0,
+    TransactionGenerator(const std::string& partiesFile,
+        double mean = 1000.0, double sd = 300.0,
         double outlier_prob = 0.01, double outlier_mult_mean = 50.0);
 
     std::string GenerateRandomTransaction();
-
     std::vector<std::string> GenerateBatch(size_t n);
-
     void SetSeed(uint64_t seed);
 
 private:
-    void InitParties(const std::string& filename);
     size_t RandIndex();
     double SampleAmount();
     static void AppendAmountTwoDecimals(std::string& dest, double amount);
@@ -44,8 +40,7 @@ private:
     double outlier_prob_;
     double outlier_mult_mean_;
 
-    std::vector<Party> parties_;
-
+    std::unique_ptr<PartiesList> partiesList;
     std::atomic<uint64_t> counter_;
 };
 
