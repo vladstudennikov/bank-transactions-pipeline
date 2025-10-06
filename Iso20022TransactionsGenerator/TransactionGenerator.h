@@ -11,19 +11,12 @@
 
 class TransactionGenerator {
 public:
-    TransactionGenerator(const std::string& partiesFile,
-        double mean = 1000.0, double sd = 300.0,
-        double outlier_prob = 0.01, double outlier_mult_mean = 50.0);
-
+    TransactionGenerator(const std::string& partiesFile);
     std::string GenerateRandomTransaction();
     std::vector<std::string> GenerateBatch(size_t n);
-    void SetSeed(uint64_t seed);
 
 private:
-    size_t RandIndex();
-    double SampleAmount();
     static void AppendAmountTwoDecimals(std::string& dest, double amount);
-    static std::string NowUtcIso();
     std::string GeneratePain001Fast(const std::string& msgId,
         const std::string& timestamp,
         const std::string& debtorName,
@@ -35,11 +28,6 @@ private:
         const std::string& currency);
 
 private:
-    std::mt19937_64 rng_;
-    std::normal_distribution<double> normal_dist_;
-    double outlier_prob_;
-    double outlier_mult_mean_;
-
     std::unique_ptr<PartiesList> partiesList;
     std::atomic<uint64_t> counter_;
 };

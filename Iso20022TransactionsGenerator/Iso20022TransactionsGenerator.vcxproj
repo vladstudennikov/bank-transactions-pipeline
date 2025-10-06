@@ -127,15 +127,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="clamp.cpp" />
     <ClCompile Include="Iso20022TransactionsGenerator.cpp" />
     <ClCompile Include="PartiesList.cpp" />
     <ClCompile Include="Party.cpp" />
+    <ClCompile Include="Randomizers.cpp" />
     <ClCompile Include="TransactionGenerator.cpp" />
+    <ClCompile Include="UtcIsoTimeGenerator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PartiesList.h" />
     <ClInclude Include="Party.h" />
+    <ClInclude Include="Randomizers.h" />
     <ClInclude Include="TransactionGenerator.h" />
+    <ClInclude Include="UtcIsoTimeGenerator.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="parties.txt">

@@ -5,63 +5,20 @@
 #include <cmath>
 #include <cstdio>
 #include <random>
+#include "clamp.cpp"
+#include "Randomizers.h"
+#include "UtcIsoTimeGenerator.h"
 
-static double clamp(double x, double lo, double hi) {
-    return (x < lo) ? lo : (x > hi ? hi : x);
-}
-
-TransactionGenerator::TransactionGenerator(const std::string& partiesFile,
-    double mean, double sd, double outlier_prob, double outlier_mult_mean)
-    : rng_(std::random_device{}()),
-    normal_dist_(mean, sd),
-    outlier_prob_(outlier_prob),
-    outlier_mult_mean_(outlier_mult_mean),
-    counter_(0)
+TransactionGenerator::TransactionGenerator(const std::string& partiesFile)
+    : counter_(0) 
 {
     this->partiesList = std::make_unique<PartiesList>(partiesFile);
-}
-
-void TransactionGenerator::SetSeed(uint64_t seed) {
-    rng_.seed(seed);
-}
-
-size_t TransactionGenerator::RandIndex() {
-    auto parties = partiesList->getParties();
-    std::uniform_int_distribution<size_t> dist(0, parties.size() - 1);
-    return dist(rng_);
-}
-
-double TransactionGenerator::SampleAmount() {
-    double x = normal_dist_(rng_);
-    std::bernoulli_distribution bd(outlier_prob_);
-    if (bd(rng_)) {
-        std::exponential_distribution<double> exp(1.0 / outlier_mult_mean_);
-        x *= (1.0 + exp(rng_));
-    }
-    return clamp(x, 0.01, 1e9);
 }
 
 void TransactionGenerator::AppendAmountTwoDecimals(std::string& dest, double amount) {
     char buf[64];
     std::snprintf(buf, sizeof(buf), "%.2f", amount);
     dest += buf;
-}
-
-std::string TransactionGenerator::NowUtcIso() {
-    using namespace std::chrono;
-    auto now = system_clock::now();
-    std::time_t t = system_clock::to_time_t(now);
-
-    std::tm tm{};
-#ifdef _WIN32
-    gmtime_s(&tm, &t);
-#else
-    gmtime_r(&t, &tm);
-#endif
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-    return oss.str();
 }
 
 std::string TransactionGenerator::GeneratePain001Fast(
@@ -140,21 +97,22 @@ std::string TransactionGenerator::GeneratePain001Fast(
 }
 
 std::string TransactionGenerator::GenerateRandomTransaction() {
+    Randomizers r(1000.0, 300.0, 0.01, 50.0);
     auto parties = partiesList->getParties();
 
-    const Party* debtor = parties[RandIndex()];
+    const Party* debtor = parties[r.RandomUniformInt(0, partiesList->getParties().size() - 1)];
     const Party* creditor = nullptr;
 
     do {
-        creditor = parties[RandIndex()];
+        creditor = parties[r.RandomUniformInt(0, partiesList->getParties().size() - 1)];
     } while (creditor->getIban() == debtor->getIban());
 
-    double amount = SampleAmount();
+    double amount = r.NormalDistWithNoize();
 
     uint64_t id = ++counter_;
     std::string msgId = "MSG-" + std::to_string(id);
     std::string endToEnd = "E2E-" + std::to_string(id);
-    std::string timestamp = NowUtcIso();
+    std::string timestamp = UtcIsoTimeGenerator::NowUtcIso();
 
     return GeneratePain001Fast(msgId, timestamp,
         debtor->getName(), debtor->getIban(),
