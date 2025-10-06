@@ -39,6 +39,9 @@
     <ClCompile Include="Randomizers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="StreamingTransactionsGenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TransactionGenerator.h">
@@ -54,6 +57,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Randomizers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StreamingTransactionsGenerator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
